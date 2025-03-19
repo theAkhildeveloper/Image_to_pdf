@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JPG से PDF कन्वर्टर</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f7f7f7;
+        }
+        .container {
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            text-align: center;
+        }
+        h1 {
+            color: #4a4a4a;
+            margin-bottom: 30px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            padding: 50px 20px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .upload-area:hover {
+            background-color: #f5f5f5;
+        }
+        .upload-area.active {
+            border-color: #ff6a00;
+            background-color: #fff8f3;
+        }
+        .file-input {
+            display: none;
+        }
+        .upload-icon {
+            font-size: 50px;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+        .btn {
+            background-color: #ff6a00;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 0;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #e05e00;
+        }
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .file-list {
+            text-align: left;
+            margin: 20px 0;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .file-name {
+            flex-grow: 1;
+            margin-left: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-remove {
+            color: #ff6a00;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .progress-container {
+            display: none;
+            margin: 20px 0;
+        }
+        .progress-bar {
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            background-color: #ff6a00;
+            width: 0;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JPG से PDF कन्वर्टर</h1>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <p>फाइल्स अपलोड करने के लिए यहां क्लिक करें या फाइल्स को खींचकर यहां छोड़ें</p>
+            <p>आप एक बार में एक से अधिक फाइलें चुन सकते हैं</p>
+        </div>
+        
+        <input type="file" id="fileInput" class="file-input" accept="image/jpeg,image/jpg" multiple>
+        
+        <div class="file-list" id="fileList"></div>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+            <p id="progressText">प्रगति: 0%</p>
+        </div>
+        
+        <button class="btn" id="convertBtn" disabled>PDF में बदलें</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            const fileList = document.getElementById('fileList');
+            const convertBtn = document.getElementById('convertBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progress = document.getElementById('progress');
+            const progressText = document.getElementById('progressText');
+            
+            let files = [];
+            
+            // Upload area click event
+            uploadArea.addEventListener('click', function() {
+                fileInput.click();
+            });
+            
+            // Drag and drop events
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('active');
+            });
+            
+            uploadArea.addEventListener('dragleave', function() {
+                uploadArea.classList.remove('active');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('active');
+                const droppedFiles = e.dataTransfer.files;
+                processFiles(droppedFiles);
+            });
+            
+            // File input change event
+            fileInput.addEventListener('change', function() {
+                processFiles(fileInput.files);
+                fileInput.value = '';
+            });
+            
+            // Process selected files
+            function processFiles(selectedFiles) {
+                if (!selectedFiles.length) return;
+                
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const file = selectedFiles[i];
+                    
+                    // Check if file is JPG
+                    if (file.type !== 'image/jpeg' && file.type !== 'image/jpg') {
+                        alert('केवल JPG/JPEG फाइलें स्वीकार्य हैं');
+                        continue;
+                    }
+                    
+                    // Add file to list
+                    files.push(file);
+                    addFileToList(file);
+                }
+                
+                updateConvertButton();
+            }
+            
+            // Add file to list
+            function addFileToList(file) {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <span class="file-icon">🖼️</span>
+                    <span class="file-name">${file.name}</span>
+                    <span class="file-remove" data-name="${file.name}">❌</span>
+                `;
+                fileList.appendChild(fileItem);
+                
+                // Remove file event
+                fileItem.querySelector('.file-remove').addEventListener('click', function() {
+                    const fileName = this.getAttribute('data-name');
+                    files = files.filter(f => f.name !== fileName);
+                    fileItem.remove();
+                    updateConvertButton();
+                });
+            }
+            
+            // Update convert button state
+            function updateConvertButton() {
+                convertBtn.disabled = files.length === 0;
+            }
+            
+            // Convert button click event
+            convertBtn.addEventListener('click', function() {
+                if (files.length === 0) return;
+                
+                convertBtn.disabled = true;
+                progressContainer.style.display = 'block';
+                
+                // Create PDF
+                convertImagesToPdf(files);
+            });
+            
+            // Convert images to PDF
+            function convertImagesToPdf(imageFiles) {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
+                const totalFiles = imageFiles.length;
+                let processedFiles = 0;
+                
+                function processNextImage(index) {
+                    if (index >= totalFiles) {
+                        // All images processed, save PDF
+                        doc.save('converted_images.pdf');
+                        
+                        // Reset UI
+                        files = [];
+                        fileList.innerHTML = '';
+                        updateConvertButton();
+                        progressContainer.style.display = 'none';
+                        return;
+                    }
+                    
+                    const file = imageFiles[index];
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        const imgData = e.target.result;
+                        
+                        // Add new page if not first image
+                        if (index > 0) {
+                            doc.addPage();
+                        }
+                        
+                        // Add image to PDF, fitting to page width
+                        const imgProps = doc.getImageProperties(imgData);
+                        const pdfWidth = doc.internal.pageSize.getWidth();
+                        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                        doc.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                        
+                        // Update progress
+                        processedFiles++;
+                        const percentComplete = Math.round((processedFiles / totalFiles) * 100);
+                        progress.style.width = percentComplete + '%';
+                        progressText.textContent = `प्रगति: ${percentComplete}%`;
+                        
+                        // Process next image
+                        processNextImage(index + 1);
+                    };
+                    
+                    reader.readAsDataURL(file);
+                }
+                
+                // Start processing images
+                processNextImage(0);
+            }
+        });
+    </script>
+</body>
+</html>
